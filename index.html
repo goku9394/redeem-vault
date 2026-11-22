@@ -1,20 +1,497 @@
-function loadSession() {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>2-Hour Redeem Vault</title>
+  <style>
+    :root {
+      --bg1: #160c28;
+      --bg2: #2b144d;
+      --card: rgba(255, 255, 255, 0.09);
+      --border: rgba(255, 255, 255, 0.2);
+      --accent: #ffd166;
+      --ok: #06d6a0;
+      --warn: #ff595e;
+      --text: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at top, #3c1874, var(--bg1) 65%);
+      color: var(--text);
+      padding: 16px;
+    }
+
+    .vault-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .brand {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .timer-pill {
+      background: rgba(0, 0, 0, 0.42);
+      border: 1px solid rgba(255, 209, 102, 0.45);
+      color: var(--accent);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.92rem;
+    }
+
+    .timer-pill.danger {
+      border-color: rgba(255, 89, 94, 0.8);
+      color: #ff8589;
+    }
+
+    .steps-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .step-chip {
+      text-align: center;
+      padding: 7px 6px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      opacity: 0.65;
+    }
+
+    .step-chip.active {
+      opacity: 1;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .step-chip.done {
+      opacity: 1;
+      background: rgba(6, 214, 160, 0.18);
+      border-color: var(--ok);
+      color: var(--ok);
+    }
+
+    .stage-box {
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .q-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--accent);
+      margin-bottom: 6px;
+      font-weight: 800;
+    }
+
+    .q-text {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      background: rgba(12, 8, 24, 0.7);
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      margin-bottom: 10px;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 11px 14px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.92rem;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #190e2c;
+    }
+
+    .btn-success {
+      background: var(--ok);
+      color: #071916;
+      margin-top: 8px;
+    }
+
+    .pattern-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .pad-btn {
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .pad-btn.picked {
+      background: rgba(6, 214, 160, 0.25);
+      border-color: var(--ok);
+      color: var(--ok);
+    }
+
+    .feedback {
+      min-height: 22px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .feedback.err {
+      color: #ff758f;
+    }
+
+    .feedback.ok {
+      color: var(--ok);
+    }
+
+    .reward-box {
+      display: none;
+      text-align: center;
+      background: rgba(6, 214, 160, 0.14);
+      border: 1px solid rgba(6, 214, 160, 0.55);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .reward-box.show {
+      display: block;
+    }
+
+    .code-display {
+      margin: 12px 0;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px dashed var(--accent);
+      font-size: 1.2rem;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      user-select: all;
+    }
+
+    .expired-box {
+      display: none;
+      text-align: center;
+      background: rgba(255, 89, 94, 0.15);
+      border: 1px solid rgba(255, 89, 94, 0.6);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .expired-box.show {
+      display: block;
+    }
+
+    .expired-box h3 {
+      margin: 0 0 8px;
+      color: #ff8589;
+    }
+
+    .expired-box p {
+      margin: 0;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      opacity: 0.92;
+    }
+  </style>
+</head>
+<body>
+  <div class="vault-card">
+    <div class="top-row">
+      <div class="brand">🔐 Redeem Challenge</div>
+      <div class="timer-pill" id="timerPill">02:00:00</div>
+    </div>
+
+    <div class="steps-bar">
+      <div class="step-chip active" id="chip1">1. Sawal</div>
+      <div class="step-chip" id="chip2">2. Puzzle</div>
+      <div class="step-chip" id="chip3">3. Sequence</div>
+    </div>
+
+    <div class="stage-box" id="stageBox"></div>
+
+    <div class="reward-box" id="rewardBox">
+      <h3 style="margin:0 0 6px; color: var(--ok);">🎉 Challenge Complete!</h3>
+      <div style="font-size:0.88rem; opacity:0.9;">Aapka Redeem Code unlock ho gaya hai:</div>
+      <div class="code-display" id="codeText">SWEET-2HR-9394</div>
+      <button class="btn btn-success" id="copyBtn">Copy Code</button>
+      <div class="feedback ok" id="copyStatus"></div>
+    </div>
+
+    <div class="expired-box" id="expiredBox">
+      <h3>⏰ 2 Ghante Khatam!</h3>
+      <p>
+        Task 2 ghante mein poora nahi ho paaya. Redeem code lock kar diya gaya hai aur reward wapas pool mein reclaim status mein chala gaya hai.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // Yahan aap apne sawal, puzzle aur redeem code badal sakte hain:
+    const CONFIG = {
+      durationMs: 2 * 60 * 60 * 1000, // 2 hours
+      redeemCode: "RISHABH-POP-2026",
+      q1: {
+        question: "Sawal 1: Agar 3 log 3 puzzle 3 minute mein solve karte hain, to 6 log 6 puzzle kitne minute mein solve karenge? (Sirf number likhein)",
+        answers: ["3", "three", "3 minute", "3 minutes"]
+      },
+      q2: {
+        question: "Sawal 2: Main bina pairon ke chalta hoon, bina haathon ke darwaza khatkhatata hoon, aur waqt ke saath aage badhta hoon. Main kaun hoon?",
+        answers: ["time", "waqt", "samay"]
+      },
+      sequenceOrder: ["A", "B", "C", "D"]
+    };
+
+    const STORAGE_KEY = "redeemVaultSession_v1";
+
+    function loadSession() {
       const now = Date.now();
       try {
-        localStorage.removeItem(STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.expiresAt === "number") {
+            return parsed;
+          }
+        }
       } catch {}
 
-      return {
+      const fresh = {
         expiresAt: now + CONFIG.durationMs,
         step: 1,
         unlocked: false,
-        code: CONFIG.fallbackCode,
-        ans1: "",
-        ans2: "",
         pickedSeq: []
       };
+      saveSession(fresh);
+      return fresh;
     }
 
-    function saveSession(_data) {
-      // Har open/refresh par fresh start ke liye localStorage mein save nahi kar rahe
+    function saveSession(data) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch {}
     }
+
+    let session = loadSession();
+
+    const timerPillEl = document.getElementById("timerPill");
+    const chip1El = document.getElementById("chip1");
+    const chip2El = document.getElementById("chip2");
+    const chip3El = document.getElementById("chip3");
+    const stageBoxEl = document.getElementById("stageBox");
+    const rewardBoxEl = document.getElementById("rewardBox");
+    const expiredBoxEl = document.getElementById("expiredBox");
+    const codeTextEl = document.getElementById("codeText");
+    const copyBtnEl = document.getElementById("copyBtn");
+    const copyStatusEl = document.getElementById("copyStatus");
+
+    function formatHMS(ms) {
+      const totalSec = Math.max(0, Math.floor(ms / 1000));
+      const h = String(Math.floor(totalSec / 3600)).padStart(2, "0");
+      const m = String(Math.floor((totalSec % 3600) / 60)).padStart(2, "0");
+      const s = String(totalSec % 60).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
+
+    function isExpired() {
+      return Date.now() >= session.expiresAt && !session.unlocked;
+    }
+
+    function updateChips() {
+      chip1El.className = "step-chip" + (session.step > 1 || session.unlocked ? " done" : session.step === 1 ? " active" : "");
+      chip2El.className = "step-chip" + (session.step > 2 || session.unlocked ? " done" : session.step === 2 ? " active" : "");
+      chip3El.className = "step-chip" + (session.unlocked ? " done" : session.step === 3 ? " active" : "");
+    }
+
+    function renderView() {
+      updateChips();
+
+      if (session.unlocked) {
+        stageBoxEl.style.display = "none";
+        expiredBoxEl.classList.remove("show");
+        rewardBoxEl.classList.add("show");
+        codeTextEl.textContent = CONFIG.redeemCode;
+        return;
+      }
+
+      if (isExpired()) {
+        stageBoxEl.style.display = "none";
+        rewardBoxEl.classList.remove("show");
+        expiredBoxEl.classList.add("show");
+        return;
+      }
+
+      rewardBoxEl.classList.remove("show");
+      expiredBoxEl.classList.remove("show");
+      stageBoxEl.style.display = "block";
+
+      if (session.step === 1) {
+        stageBoxEl.innerHTML = `
+          <div class="q-title">Challenge 1 of 3</div>
+          <div class="q-text">${CONFIG.q1.question}</div>
+          <input type="text" id="ansInput" placeholder="Apna jawab likhein..." autocomplete="off" />
+          <button class="btn btn-primary" id="submitAnsBtn">Jawab Check Karein</button>
+          <div class="feedback" id="fb"></div>
+        `;
+        document.getElementById("submitAnsBtn").addEventListener("click", () => checkTextAnswer(CONFIG.q1.answers, 2));
+      } else if (session.step === 2) {
+        stageBoxEl.innerHTML = `
+          <div class="q-title">Challenge 2 of 3</div>
+          <div class="q-text">${CONFIG.q2.question}</div>
+          <input type="text" id="ansInput" placeholder="Apna jawab likhein..." autocomplete="off" />
+          <button class="btn btn-primary" id="submitAnsBtn">Jawab Check Karein</button>
+          <div class="feedback" id="fb"></div>
+        `;
+        document.getElementById("submitAnsBtn").addEventListener("click", () => checkTextAnswer(CONFIG.q2.answers, 3));
+      } else {
+        const pads = ["C", "A", "D", "B"];
+        stageBoxEl.innerHTML = `
+          <div class="q-title">Challenge 3 of 3 (Final Puzzle)</div>
+          <div class="q-text">Buttons ko sahi order <strong>A → B → C → D</strong> mein tap karein:</div>
+          <div class="pattern-grid">
+            ${pads.map((p) => {
+              const picked = session.pickedSeq.includes(p);
+              return `<button class="pad-btn ${picked ? "picked" : ""}" data-pad="${p}">${p}</button>`;
+            }).join("")}
+          </div>
+          <div class="feedback" id="fb">Picked: ${session.pickedSeq.join(" → ") || "None"}</div>
+        `;
+        stageBoxEl.querySelectorAll(".pad-btn").forEach((btn) => {
+          btn.addEventListener("click", () => onPadTap(btn.dataset.pad));
+        });
+      }
+    }
+
+    function checkTextAnswer(validList, nextStep) {
+      if (isExpired()) return renderView();
+      const inputEl = document.getElementById("ansInput");
+      const fbEl = document.getElementById("fb");
+      const val = (inputEl.value || "").trim().toLowerCase();
+
+      if (validList.includes(val)) {
+        session.step = nextStep;
+        saveSession(session);
+        renderView();
+      } else {
+        fbEl.className = "feedback err";
+        fbEl.textContent = "Galat jawab! Dobara try karein.";
+      }
+    }
+
+    function onPadTap(letter) {
+      if (isExpired()) return renderView();
+      const expected = CONFIG.sequenceOrder[session.pickedSeq.length];
+      const fbEl = document.getElementById("fb");
+
+      if (letter === expected) {
+        session.pickedSeq.push(letter);
+        saveSession(session);
+        if (session.pickedSeq.length === CONFIG.sequenceOrder.length) {
+          session.unlocked = true;
+          saveSession(session);
+          renderView();
+        } else {
+          renderView();
+        }
+      } else {
+        session.pickedSeq = [];
+        saveSession(session);
+        renderView();
+        const nextFb = document.getElementById("fb");
+        if (nextFb) {
+          nextFb.className = "feedback err";
+          nextFb.textContent = "Order galat ho gaya! A se dobara shuru karein.";
+        }
+      }
+    }
+
+    copyBtnEl.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(CONFIG.redeemCode);
+        copyStatusEl.textContent = "Code copy ho gaya!";
+      } catch {
+        copyStatusEl.textContent = "Code select karke copy kar lein.";
+      }
+    });
+
+    setInterval(() => {
+      const rem = session.expiresAt - Date.now();
+      timerPillEl.textContent = formatHMS(rem);
+      timerPillEl.classList.toggle("danger", rem <= 10 * 60 * 1000 && !session.unlocked);
+
+      if (rem <= 0 && !session.unlocked && stageBoxEl.style.display !== "none") {
+        renderView();
+      }
+    }, 1000);
+
+    timerPillEl.textContent = formatHMS(session.expiresAt - Date.now());
+    renderView();
+  </script>
+</body>
+
+<script src="reedem.js"></script>
+</html>
