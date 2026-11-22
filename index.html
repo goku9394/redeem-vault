@@ -156,6 +156,11 @@
       cursor: pointer;
     }
 
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .btn-primary {
       background: var(--accent);
       color: #190e2c;
@@ -277,24 +282,24 @@
     <div class="reward-box" id="rewardBox">
       <h3 style="margin:0 0 6px; color: var(--ok);">🎉 Challenge Complete!</h3>
       <div style="font-size:0.88rem; opacity:0.9;">Aapka Redeem Code unlock ho gaya hai:</div>
-      <div class="code-display" id="codeText">SWEET-2HR-9394</div>
+      <div class="code-display" id="codeText">RISHABH-POP-2026</div>
       <button class="btn btn-success" id="copyBtn">Copy Code</button>
       <div class="feedback ok" id="copyStatus"></div>
     </div>
 
     <div class="expired-box" id="expiredBox">
       <h3>⏰ 2 Ghante Khatam!</h3>
-      <p>
+      <p id="expiredMsg">
         Task 2 ghante mein poora nahi ho paaya. Redeem code lock kar diya gaya hai aur reward wapas pool mein reclaim status mein chala gaya hai.
       </p>
     </div>
   </div>
 
   <script>
-    // Yahan aap apne sawal, puzzle aur redeem code badal sakte hain:
     const CONFIG = {
-      durationMs: 2 * 60 * 60 * 1000, // 2 hours
-      redeemCode: "RISHABH-POP-2026",
+      apiUrl: "",
+      durationMs: 2 * 60 * 60 * 1000,
+      fallbackCode: "RISHABH-POP-2026",
       q1: {
         question: "Sawal 1: Agar 3 log 3 puzzle 3 minute mein solve karte hain, to 6 log 6 puzzle kitne minute mein solve karenge? (Sirf number likhein)",
         answers: ["3", "three", "3 minute", "3 minutes"]
@@ -306,37 +311,33 @@
       sequenceOrder: ["A", "B", "C", "D"]
     };
 
-    const STORAGE_KEY = "redeemVaultSession_v1";
+    const params = new URLSearchParams(window.location.search);
+    const TOKEN = (params.get("token") || "GUEST-01").trim() || "GUEST-01";
+    const STORAGE_KEY = `redeemVaultSession_${TOKEN}_v2`;
 
     function loadSession() {
       const now = Date.now();
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed.expiresAt === "number") {
-            return parsed;
-          }
-        }
+        localStorage.removeItem(STORAGE_KEY);
       } catch {}
 
-      const fresh = {
+      return {
         expiresAt: now + CONFIG.durationMs,
         step: 1,
         unlocked: false,
+        code: CONFIG.fallbackCode,
+        ans1: "",
+        ans2: "",
         pickedSeq: []
       };
-      saveSession(fresh);
-      return fresh;
     }
 
-    function saveSession(data) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      } catch {}
+    function saveSession(_data) {
+      // Har open/refresh par fresh start ke liye localStorage mein save nahi kar rahe
     }
 
     let session = loadSession();
+    let isSubmitting = false;
 
     const timerPillEl = document.getElementById("timerPill");
     const chip1El = document.getElementById("chip1");
@@ -345,6 +346,7 @@
     const stageBoxEl = document.getElementById("stageBox");
     const rewardBoxEl = document.getElementById("rewardBox");
     const expiredBoxEl = document.getElementById("expiredBox");
+    const expiredMsgEl = document.getElementById("expiredMsg");
     const codeTextEl = document.getElementById("codeText");
     const copyBtnEl = document.getElementById("copyBtn");
     const copyStatusEl = document.getElementById("copyStatus");
@@ -374,7 +376,7 @@
         stageBoxEl.style.display = "none";
         expiredBoxEl.classList.remove("show");
         rewardBoxEl.classList.add("show");
-        codeTextEl.textContent = CONFIG.redeemCode;
+        codeTextEl.textContent = session.code || CONFIG.fallbackCode;
         return;
       }
 
@@ -393,20 +395,20 @@
         stageBoxEl.innerHTML = `
           <div class="q-title">Challenge 1 of 3</div>
           <div class="q-text">${CONFIG.q1.question}</div>
-          <input type="text" id="ansInput" placeholder="Apna jawab likhein..." autocomplete="off" />
+          <input type="text" id="ansInput" value="${session.ans1 || ""}" placeholder="Apna jawab likhein..." autocomplete="off" />
           <button class="btn btn-primary" id="submitAnsBtn">Jawab Check Karein</button>
           <div class="feedback" id="fb"></div>
         `;
-        document.getElementById("submitAnsBtn").addEventListener("click", () => checkTextAnswer(CONFIG.q1.answers, 2));
+        document.getElementById("submitAnsBtn").addEventListener("click", () => handleQ1());
       } else if (session.step === 2) {
         stageBoxEl.innerHTML = `
           <div class="q-title">Challenge 2 of 3</div>
           <div class="q-text">${CONFIG.q2.question}</div>
-          <input type="text" id="ansInput" placeholder="Apna jawab likhein..." autocomplete="off" />
+          <input type="text" id="ansInput" value="${session.ans2 || ""}" placeholder="Apna jawab likhein..." autocomplete="off" />
           <button class="btn btn-primary" id="submitAnsBtn">Jawab Check Karein</button>
           <div class="feedback" id="fb"></div>
         `;
-        document.getElementById("submitAnsBtn").addEventListener("click", () => checkTextAnswer(CONFIG.q2.answers, 3));
+        document.getElementById("submitAnsBtn").addEventListener("click", () => handleQ2());
       } else {
         const pads = ["C", "A", "D", "B"];
         stageBoxEl.innerHTML = `
@@ -415,10 +417,10 @@
           <div class="pattern-grid">
             ${pads.map((p) => {
               const picked = session.pickedSeq.includes(p);
-              return `<button class="pad-btn ${picked ? "picked" : ""}" data-pad="${p}">${p}</button>`;
+              return `<button class="pad-btn ${picked ? "picked" : ""}" data-pad="${p}" ${isSubmitting ? "disabled" : ""}>${p}</button>`;
             }).join("")}
           </div>
-          <div class="feedback" id="fb">Picked: ${session.pickedSeq.join(" → ") || "None"}</div>
+          <div class="feedback" id="fb">${isSubmitting ? "Verify ho raha hai..." : `Picked: ${session.pickedSeq.join(" → ") || "None"}`}</div>
         `;
         stageBoxEl.querySelectorAll(".pad-btn").forEach((btn) => {
           btn.addEventListener("click", () => onPadTap(btn.dataset.pad));
@@ -426,14 +428,16 @@
       }
     }
 
-    function checkTextAnswer(validList, nextStep) {
+    function handleQ1() {
       if (isExpired()) return renderView();
       const inputEl = document.getElementById("ansInput");
       const fbEl = document.getElementById("fb");
-      const val = (inputEl.value || "").trim().toLowerCase();
+      const rawVal = (inputEl.value || "").trim();
+      const val = rawVal.toLowerCase();
 
-      if (validList.includes(val)) {
-        session.step = nextStep;
+      if (CONFIG.q1.answers.includes(val)) {
+        session.ans1 = rawVal;
+        session.step = 2;
         saveSession(session);
         renderView();
       } else {
@@ -442,18 +446,90 @@
       }
     }
 
-    function onPadTap(letter) {
+    function handleQ2() {
       if (isExpired()) return renderView();
-      const expected = CONFIG.sequenceOrder[session.pickedSeq.length];
+      const inputEl = document.getElementById("ansInput");
       const fbEl = document.getElementById("fb");
+      const rawVal = (inputEl.value || "").trim();
+      const val = rawVal.toLowerCase();
+
+      if (CONFIG.q2.answers.includes(val)) {
+        session.ans2 = rawVal;
+        session.step = 3;
+        saveSession(session);
+        renderView();
+      } else {
+        fbEl.className = "feedback err";
+        fbEl.textContent = "Galat jawab! Dobara try karein.";
+      }
+    }
+
+    async function claimCodeFromServer() {
+      if (!CONFIG.apiUrl) {
+        session.unlocked = true;
+        session.code = CONFIG.fallbackCode;
+        saveSession(session);
+        renderView();
+        return;
+      }
+
+      isSubmitting = true;
+      renderView();
+
+      try {
+        const res = await fetch(CONFIG.apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            token: TOKEN,
+            ans1: session.ans1,
+            ans2: session.ans2,
+            seq: session.pickedSeq
+          })
+        });
+        const data = await res.json();
+        isSubmitting = false;
+
+        if (data.ok && data.status === "claimed") {
+          session.unlocked = true;
+          session.code = data.code || CONFIG.fallbackCode;
+          saveSession(session);
+          renderView();
+        } else if (data.status === "expired") {
+          session.expiresAt = Date.now() - 1000;
+          saveSession(session);
+          if (data.message) expiredMsgEl.textContent = data.message;
+          renderView();
+        } else {
+          const fbEl = document.getElementById("fb");
+          if (fbEl) {
+            fbEl.className = "feedback err";
+            fbEl.textContent = data.message || "Verification failed. Dobara try karein.";
+          }
+          session.pickedSeq = [];
+          saveSession(session);
+          renderView();
+        }
+      } catch {
+        isSubmitting = false;
+        renderView();
+        const fbEl = document.getElementById("fb");
+        if (fbEl) {
+          fbEl.className = "feedback err";
+          fbEl.textContent = "Server se connect nahi ho paaya. Internet check karein.";
+        }
+      }
+    }
+
+    async function onPadTap(letter) {
+      if (isExpired() || isSubmitting) return renderView();
+      const expected = CONFIG.sequenceOrder[session.pickedSeq.length];
 
       if (letter === expected) {
         session.pickedSeq.push(letter);
         saveSession(session);
         if (session.pickedSeq.length === CONFIG.sequenceOrder.length) {
-          session.unlocked = true;
-          saveSession(session);
-          renderView();
+          await claimCodeFromServer();
         } else {
           renderView();
         }
@@ -469,9 +545,34 @@
       }
     }
 
-    copyBtnEl.addEventListener("click", async () => {
+    async function syncSessionWithServer() {
+      if (!CONFIG.apiUrl) return;
       try {
-        await navigator.clipboard.writeText(CONFIG.redeemCode);
+        const res = await fetch(`${CONFIG.apiUrl}?token=${encodeURIComponent(TOKEN)}`);
+        const data = await res.json();
+        if (!data || !data.ok) return;
+
+        if (data.status === "claimed") {
+          session.unlocked = true;
+          session.code = data.code || session.code;
+          saveSession(session);
+          renderView();
+        } else if (data.status === "expired") {
+          session.expiresAt = Date.now() - 1000;
+          saveSession(session);
+          if (data.message) expiredMsgEl.textContent = data.message;
+          renderView();
+        } else if (data.status === "active" && typeof data.expiresAt === "number") {
+          session.expiresAt = data.expiresAt;
+          saveSession(session);
+        }
+      } catch {}
+    }
+
+    copyBtnEl.addEventListener("click", async () => {
+      const codeToCopy = session.code || CONFIG.fallbackCode;
+      try {
+        await navigator.clipboard.writeText(codeToCopy);
         copyStatusEl.textContent = "Code copy ho gaya!";
       } catch {
         copyStatusEl.textContent = "Code select karke copy kar lein.";
@@ -490,8 +591,7 @@
 
     timerPillEl.textContent = formatHMS(session.expiresAt - Date.now());
     renderView();
+    syncSessionWithServer();
   </script>
 </body>
-
-<script src="reedem.js"></script>
 </html>
